@@ -174,6 +174,12 @@
     color: #666;
     margin-top: 14px;
   }
+  .loading {
+    text-align: center;
+    color: #8a8aa0;
+    font-size: 13px;
+    padding: 20px 0;
+  }
 </style>
 </head>
 <body>
@@ -186,6 +192,7 @@
     </div>
 
     <ul class="playlist" id="playlist"></ul>
+    <div class="loading" id="loading">Loading tracks...</div>
 
     <div class="controls">
       <button id="btnPrev" title="上一首">&#9198;</button>
@@ -199,42 +206,88 @@
       <span class="time" id="durTime">0:00</span>
     </div>
 
-    <div class="footer">Powered by GitHub Pages</div>
+    <div class="footer" id="footer">Powered by GitHub Pages</div>
   </div>
   <audio id="audio" preload="metadata"></audio>
 
 <script>
-  const tracks = [
-    { title: '童话镇', artist: '陈一发儿', fmt: 'FLAC', src: 'https://cdn.jsdelivr.net/gh/1055169799/1055169799@main/resources/videos/%E9%99%88%E4%B8%80%E5%8F%91%E5%84%BF_-_%E7%AB%A5%E8%AF%9D%E9%95%87.mp4' },
-    { title: '童话镇', artist: '陈一发儿', fmt: 'MP3', src: 'https://cdn.jsdelivr.net/gh/1055169799/1055169799@main/resources/videos/%E9%99%88%E4%B8%80%E5%8F%91%E5%84%BF-%E7%AB%A5%E8%AF%9D%E9%95%87.mp4' },
-    { title: '搁浅', artist: '周杰伦', fmt: 'MP3', src: 'https://cdn.jsdelivr.net/gh/1055169799/1055169799@main/resources/videos/%E6%90%81%E6%B5%85-%E5%91%A8%E6%9D%B0%E4%BC%A6.mp4' },
-    { title: '晴天', artist: '周杰伦', fmt: 'MP3', src: 'https://cdn.jsdelivr.net/gh/1055169799/1055169799@main/resources/videos/%E6%99%B4%E5%A4%A9-%E5%91%A8%E6%9D%B0%E4%BC%A6.mp4' },
-    { title: '夜曲', artist: '周杰伦', fmt: 'FLAC', src: 'https://cdn.jsdelivr.net/gh/1055169799/1055169799@main/resources/videos/%E5%A4%9C%E6%9B%B2-%E5%91%A8%E6%9D%B0%E4%BC%A6.mp4' }
+  var OWNER = '1055169799';
+  var REPO = '1055169799';
+  var MUSIC_PATH = 'resources/music';
+
+  // 兜底曲目（动态加载失败时使用）
+  var STATIC_TRACKS = [
+    { title: '童话镇', artist: '陈一发儿', fmt: 'FLAC', src: 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/resources/music/%E9%99%88%E4%B8%80%E5%8F%91%E5%84%BF_-_%E7%AB%A5%E8%AF%9D%E9%95%87.flac' },
+    { title: '童话镇', artist: '陈一发儿', fmt: 'MP3', src: 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/resources/music/%E9%99%88%E4%B8%80%E5%8F%91%E5%84%BF-%E7%AB%A5%E8%AF%9D%E9%95%87.mp3' },
+    { title: '搁浅', artist: '周杰伦', fmt: 'MP3', src: 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/resources/music/%E6%90%81%E6%B5%85-%E5%91%A8%E6%9D%B0%E4%BC%A6.mp3' },
+    { title: '晴天', artist: '周杰伦', fmt: 'MP3', src: 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/resources/music/%E6%99%B4%E5%A4%A9-%E5%91%A8%E6%9D%B0%E4%BC%A6.mp3' },
+    { title: '夜曲', artist: '周杰伦', fmt: 'FLAC', src: 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/resources/music/%E5%A4%9C%E6%9B%B2-%E5%91%A8%E6%9D%B0%E4%BC%A6.flac' }
   ];
 
-  const audio = document.getElementById('audio');
-  const playBtn = document.getElementById('btnPlay');
-  const seek = document.getElementById('seek');
-  const curTime = document.getElementById('curTime');
-  const durTime = document.getElementById('durTime');
-  const coverTitle = document.getElementById('coverTitle');
-  const coverArtist = document.getElementById('coverArtist');
-  const coverFormat = document.getElementById('coverFormat');
-  const playlist = document.getElementById('playlist');
+  // 已知曲目元数据（文件名 -> 标题/歌手），新增歌曲不在列表时自动用文件名作为标题
+  var NAME_MAP = {
+    '陈一发儿_-_童话镇.flac': { title: '童话镇', artist: '陈一发儿' },
+    '陈一发儿-童话镇.mp3': { title: '童话镇', artist: '陈一发儿' },
+    '搁浅-周杰伦.mp3': { title: '搁浅', artist: '周杰伦' },
+    '晴天-周杰伦.mp3': { title: '晴天', artist: '周杰伦' },
+    '夜曲-周杰伦.flac': { title: '夜曲', artist: '周杰伦' }
+  };
 
-  let current = 0;
+  var AUDIO_EXTS = ['.mp3', '.flac', '.wav', '.m4a', '.aac', '.ogg'];
+
+  var audio = document.getElementById('audio');
+  var playBtn = document.getElementById('btnPlay');
+  var seek = document.getElementById('seek');
+  var curTime = document.getElementById('curTime');
+  var durTime = document.getElementById('durTime');
+  var coverTitle = document.getElementById('coverTitle');
+  var coverArtist = document.getElementById('coverArtist');
+  var coverFormat = document.getElementById('coverFormat');
+  var playlist = document.getElementById('playlist');
+  var loading = document.getElementById('loading');
+  var footer = document.getElementById('footer');
+
+  var tracks = [];
+  var current = 0;
 
   function fmtTime(sec) {
     if (isNaN(sec)) return '0:00';
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return m + ':' + String(s).padStart(2, '0');
+    var m = Math.floor(sec / 60);
+    var s = Math.floor(sec % 60);
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  // 动态读取仓库 resources/music 目录，自动生成曲目列表
+  function loadTracksFromRepo() {
+    var url = 'https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/' + MUSIC_PATH;
+    return fetch(url)
+      .then(function (resp) {
+        if (!resp.ok) throw new Error('API error: ' + resp.status);
+        return resp.json();
+      })
+      .then(function (items) {
+        var files = items.filter(function (it) {
+          return it.type === 'file' && AUDIO_EXTS.some(function (e) { return it.name.toLowerCase().endsWith(e); });
+        });
+        if (!files.length) throw new Error('no audio files');
+        return files.map(function (f) {
+          var meta = NAME_MAP[f.name] || {};
+          var fmt = f.name.split('.').pop().toUpperCase();
+          var src = 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/' + MUSIC_PATH + '/' + encodeURIComponent(f.name);
+          return {
+            title: meta.title || f.name.replace(/\.[^.]+$/, ''),
+            artist: meta.artist || 'Unknown',
+            fmt: fmt,
+            src: src
+          };
+        });
+      });
   }
 
   function renderPlaylist() {
     playlist.innerHTML = '';
-    tracks.forEach((t, i) => {
-      const li = document.createElement('li');
+    tracks.forEach(function (t, i) {
+      var li = document.createElement('li');
       li.dataset.i = i;
       li.innerHTML = '<span class="num">' + (i + 1) + '</span>' +
         '<div class="meta"><div class="tname">' + t.title + '</div><div class="tartist">' + t.artist + '</div></div>' +
@@ -247,14 +300,15 @@
 
   function loadTrack(i, autoplay) {
     current = i;
-    const t = tracks[i];
+    var t = tracks[i];
     audio.src = t.src;
     coverTitle.textContent = t.title;
     coverArtist.textContent = t.artist;
     coverFormat.textContent = t.fmt;
-    document.querySelectorAll('.playlist li').forEach(function (li, idx) {
-      li.classList.toggle('active', idx === i);
-    });
+    var lis = playlist.querySelectorAll('li');
+    for (var k = 0; k < lis.length; k++) {
+      lis[k].classList.toggle('active', k === i);
+    }
     if (autoplay) audio.play();
   }
 
@@ -268,16 +322,16 @@
 
   playBtn.addEventListener('click', togglePlay);
   document.getElementById('btnPrev').addEventListener('click', function () {
-    loadTrack((current - 1 + tracks.length) % tracks.length, true);
+    if (tracks.length) loadTrack((current - 1 + tracks.length) % tracks.length, true);
   });
   document.getElementById('btnNext').addEventListener('click', function () {
-    loadTrack((current + 1) % tracks.length, true);
+    if (tracks.length) loadTrack((current + 1) % tracks.length, true);
   });
 
   audio.addEventListener('play', function () { playBtn.innerHTML = '&#10074;&#10074;'; });
   audio.addEventListener('pause', function () { playBtn.innerHTML = '&#9654;'; });
   audio.addEventListener('ended', function () {
-    loadTrack((current + 1) % tracks.length, true);
+    if (tracks.length) loadTrack((current + 1) % tracks.length, true);
   });
   audio.addEventListener('timeupdate', function () {
     curTime.textContent = fmtTime(audio.currentTime);
@@ -292,8 +346,22 @@
     if (audio.duration) audio.currentTime = (seek.value / 100) * audio.duration;
   });
 
-  renderPlaylist();
-  loadTrack(0, false);
+  // 初始化：优先动态加载，失败回退静态列表
+  loading.style.display = 'block';
+  loadTracksFromRepo()
+    .then(function (list) {
+      tracks = list;
+      footer.textContent = 'Auto-loaded ' + list.length + ' tracks from resources/music';
+    })
+    .catch(function () {
+      tracks = STATIC_TRACKS;
+      footer.textContent = 'Loaded built-in tracks (offline mode)';
+    })
+    .then(function () {
+      loading.style.display = 'none';
+      renderPlaylist();
+      loadTrack(0, false);
+    });
 </script>
 </body>
 </html>
