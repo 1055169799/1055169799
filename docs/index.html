@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Music Player</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: linear-gradient(160deg, #0f0f1a 0%, #16162a 45%, #1d1d33 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Segoe UI', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    color: #e8e8f0;
+  }
+  .player {
+    width: 420px;
+    max-width: 94vw;
+    background: #16162a;
+    border: 1px solid #2a2a48;
+    border-radius: 24px;
+    padding: 28px 24px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.55);
+  }
+  .cover {
+    background: linear-gradient(135deg, #2a2a48 0%, #1a1a30 60%, #10101e 100%);
+    border-radius: 18px;
+    padding: 32px 20px;
+    text-align: center;
+    margin-bottom: 22px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::before {
+    content: '';
+    position: absolute;
+    inset: -40% -20% -40% -20%;
+    background: conic-gradient(from 0deg, rgba(255,215,0,.25), transparent 25%, rgba(255,215,0,.10) 50%, transparent 75%, rgba(255,215,0,.25));
+    animation: spin 8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .cover-icon {
+    position: relative;
+    font-size: 64px;
+    color: #ffd700;
+    line-height: 1;
+    text-shadow: 0 0 30px rgba(255,215,0,.6);
+  }
+  .cover-title {
+    position: relative;
+    margin-top: 16px;
+    font-size: 22px;
+    font-weight: 700;
+    color: #ffffff;
+  }
+  .cover-artist {
+    position: relative;
+    margin-top: 6px;
+    font-size: 14px;
+    color: #9a9ac0;
+  }
+  .cover-format {
+    position: relative;
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 11px;
+    color: #ffd700;
+    border: 1px solid #ffd700;
+    border-radius: 6px;
+    padding: 2px 8px;
+  }
+  .playlist {
+    list-style: none;
+    margin-bottom: 20px;
+    max-height: 210px;
+    overflow-y: auto;
+  }
+  .playlist::-webkit-scrollbar { width: 6px; }
+  .playlist::-webkit-scrollbar-thumb { background: #2a2a48; border-radius: 3px; }
+  .playlist li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  .playlist li:hover { background: #202038; }
+  .playlist li.active { background: #24244a; }
+  .playlist .num {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #2a2a48;
+    color: #ffd700;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .playlist li.active .num { background: #ffd700; color: #16162a; }
+  .playlist .meta { flex: 1; min-width: 0; }
+  .playlist .tname { font-size: 14px; font-weight: 600; color: #f2f2f8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .playlist .tartist { font-size: 12px; color: #8a8aa0; margin-top: 2px; }
+  .playlist .fmt {
+    font-size: 10px;
+    color: #ffd700;
+    border: 1px solid #ffd700;
+    border-radius: 4px;
+    padding: 1px 5px;
+    flex-shrink: 0;
+  }
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    margin-bottom: 14px;
+  }
+  .controls button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #c8c8e0;
+    font-size: 20px;
+    transition: color .2s, transform .1s;
+  }
+  .controls button:hover { color: #ffd700; }
+  .controls button:active { transform: scale(.92); }
+  .controls .main {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ffd700, #ffb800);
+    color: #16162a;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 20px rgba(255,215,0,.35);
+  }
+  .controls .main:hover { color: #10101e; }
+  .progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .progress .time { font-size: 12px; color: #8a8aa0; width: 38px; text-align: center; }
+  .progress input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 2px;
+    background: #2a2a48;
+    outline: none;
+  }
+  .progress input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #ffd700;
+    cursor: pointer;
+  }
+  .footer {
+    text-align: center;
+    font-size: 11px;
+    color: #666;
+    margin-top: 14px;
+  }
+</style>
+</head>
+<body>
+  <div class="player">
+    <div class="cover">
+      <div class="cover-icon">&#9835;</div>
+      <div class="cover-title" id="coverTitle">My Music Player</div>
+      <div class="cover-artist" id="coverArtist">Welcome</div>
+      <div class="cover-format" id="coverFormat">--</div>
+    </div>
+
+    <ul class="playlist" id="playlist"></ul>
+
+    <div class="controls">
+      <button id="btnPrev" title="上一首">&#9198;</button>
+      <button class="main" id="btnPlay" title="播放/暂停">&#9654;</button>
+      <button id="btnNext" title="下一首">&#9197;</button>
+    </div>
+
+    <div class="progress">
+      <span class="time" id="curTime">0:00</span>
+      <input type="range" id="seek" min="0" max="100" value="0">
+      <span class="time" id="durTime">0:00</span>
+    </div>
+
+    <div class="footer">Powered by GitHub Pages</div>
+  </div>
+  <audio id="audio" preload="metadata"></audio>
+
+<script>
+  const tracks = [
+    { title: '童话镇', artist: '陈一发儿', fmt: 'FLAC', src: 'https://cdn.jsdelivr.net/gh/1055169799/1055169799@main/resources/videos/%E9%99%88%E4%B8%80%E5%8F%91%E5%84%BF_-_%E7%AB%A5%E8%AF%9D%E9%95%87.mp4' },
+    { title: '童话镇', artist: '陈一发儿', fmt: 'MP3', src: 'https://cdn.jsdelivr.net/gh/1055169799/1055169799@main/resources/videos/%E9%99%88%E4%B8%80%E5%8F%91%E5%84%BF-%E7%AB%A5%E8%AF%9D%E9%95%87.mp4' },
+    { title: '搁浅', artist: '周杰伦', fmt: 'MP3', src: 'https://cdn.jsdelivr.net/gh/1055169799/1055169799@main/resources/videos/%E6%90%81%E6%B5%85-%E5%91%A8%E6%9D%B0%E4%BC%A6.mp4' },
+    { title: '晴天', artist: '周杰伦', fmt: 'MP3', src: 'https://cdn.jsdelivr.net/gh/1055169799/1055169799@main/resources/videos/%E6%99%B4%E5%A4%A9-%E5%91%A8%E6%9D%B0%E4%BC%A6.mp4' },
+    { title: '夜曲', artist: '周杰伦', fmt: 'FLAC', src: 'https://cdn.jsdelivr.net/gh/1055169799/1055169799@main/resources/videos/%E5%A4%9C%E6%9B%B2-%E5%91%A8%E6%9D%B0%E4%BC%A6.mp4' }
+  ];
+
+  const audio = document.getElementById('audio');
+  const playBtn = document.getElementById('btnPlay');
+  const seek = document.getElementById('seek');
+  const curTime = document.getElementById('curTime');
+  const durTime = document.getElementById('durTime');
+  const coverTitle = document.getElementById('coverTitle');
+  const coverArtist = document.getElementById('coverArtist');
+  const coverFormat = document.getElementById('coverFormat');
+  const playlist = document.getElementById('playlist');
+
+  let current = 0;
+
+  function fmtTime(sec) {
+    if (isNaN(sec)) return '0:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
+  function renderPlaylist() {
+    playlist.innerHTML = '';
+    tracks.forEach((t, i) => {
+      const li = document.createElement('li');
+      li.dataset.i = i;
+      li.innerHTML = '<span class="num">' + (i + 1) + '</span>' +
+        '<div class="meta"><div class="tname">' + t.title + '</div><div class="tartist">' + t.artist + '</div></div>' +
+        '<span class="fmt">' + t.fmt + '</span>';
+      if (i === current) li.classList.add('active');
+      li.addEventListener('click', function () { loadTrack(Number(this.dataset.i)); });
+      playlist.appendChild(li);
+    });
+  }
+
+  function loadTrack(i, autoplay) {
+    current = i;
+    const t = tracks[i];
+    audio.src = t.src;
+    coverTitle.textContent = t.title;
+    coverArtist.textContent = t.artist;
+    coverFormat.textContent = t.fmt;
+    document.querySelectorAll('.playlist li').forEach(function (li, idx) {
+      li.classList.toggle('active', idx === i);
+    });
+    if (autoplay) audio.play();
+  }
+
+  function togglePlay() {
+    if (audio.paused) {
+      audio.play();
+    } else {
+      audio.pause();
+    }
+  }
+
+  playBtn.addEventListener('click', togglePlay);
+  document.getElementById('btnPrev').addEventListener('click', function () {
+    loadTrack((current - 1 + tracks.length) % tracks.length, true);
+  });
+  document.getElementById('btnNext').addEventListener('click', function () {
+    loadTrack((current + 1) % tracks.length, true);
+  });
+
+  audio.addEventListener('play', function () { playBtn.innerHTML = '&#10074;&#10074;'; });
+  audio.addEventListener('pause', function () { playBtn.innerHTML = '&#9654;'; });
+  audio.addEventListener('ended', function () {
+    loadTrack((current + 1) % tracks.length, true);
+  });
+  audio.addEventListener('timeupdate', function () {
+    curTime.textContent = fmtTime(audio.currentTime);
+    durTime.textContent = fmtTime(audio.duration);
+    if (audio.duration) seek.value = (audio.currentTime / audio.duration) * 100;
+  });
+  audio.addEventListener('loadedmetadata', function () {
+    durTime.textContent = fmtTime(audio.duration);
+  });
+
+  seek.addEventListener('input', function () {
+    if (audio.duration) audio.currentTime = (seek.value / 100) * audio.duration;
+  });
+
+  renderPlaylist();
+  loadTrack(0, false);
+</script>
+</body>
+</html>
