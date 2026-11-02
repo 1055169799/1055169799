@@ -39,13 +39,18 @@
     flex-shrink: 0;
   }
   .cover {
+    aspect-ratio: 1 / 1;
     background: linear-gradient(135deg, #2a2a48 0%, #1a1a30 60%, #10101e 100%);
     border-radius: 18px;
-    padding: 24px 20px 20px;
+    padding: 18px;
     text-align: center;
     margin-bottom: 18px;
     position: relative;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
   }
   .cover::before {
     content: '';
@@ -66,11 +71,11 @@
   }
   .cover-img {
     display: none;
-    width: 170px;
-    height: 170px;
+    width: 220px;
+    height: 220px;
     border-radius: 16px;
     object-fit: cover;
-    margin: 0 auto;
+    margin: 6px auto 10px;
     box-shadow: 0 8px 40px rgba(0,0,0,.6);
   }
   .cover-title {
@@ -169,6 +174,7 @@
     font-size: 11px;
     color: #666;
     margin-top: 12px;
+    line-height: 1.6;
   }
 
   /* ===== 播放列表（播放器外部） ===== */
@@ -343,6 +349,7 @@
   var REPO = '1055169799';
   var MUSIC_PATH = 'resources/music';
   var COVERS_PATH = 'resources/covers';
+  var CACHE_KEY = 'marvis_playlist_cache_v1';
 
   // 已知曲目元数据（文件名 -> 标题/歌手），只用于美化显示；新增歌曲不在列表时自动用文件名作为标题
   var NAME_MAP = {
@@ -397,6 +404,7 @@
 
   var tracks = [];
   var current = 0;
+  var switchedAlt = false;
 
   function fmtTime(sec) {
     if (isNaN(sec)) return '0:00';
@@ -405,7 +413,7 @@
     return m + ':' + (s < 10 ? '0' : '') + s;
   }
 
-  // 源1：GitHub Contents API（实时权威，匿名限流 60 次/小时）
+  // ---- 目录列表获取：GitHub API 优先，jsDelivr 数据接口兜底 ----
   function listDirFromGitHub(path) {
     return fetch('https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/' + path)
       .then(function (r) {
@@ -417,7 +425,6 @@
       });
   }
 
-  // 源2：jsDelivr 数据接口（无匿名限流，CORS 开放；内容缓存最多几分钟）
   function listDirFromJsDelivr(path) {
     var prefix = path + '/';
     return fetch('https://data.jsdelivr.com/v1/packages/gh/' + OWNER + '/' + REPO + '@main')
@@ -438,14 +445,18 @@
     });
   }
 
+  // 音频直链：raw.githubusercontent.com 为主（支持 Range 播放、无 20MB 限制），github.com/raw 为备
   function buildTrack(fileName) {
     var meta = NAME_MAP[fileName] || {};
     var fmt = fileName.split('.').pop().toUpperCase();
+    var enc = encodeURIComponent(fileName);
     return {
       title: meta.title || fileName.replace(/\.[^.]+$/, ''),
       artist: meta.artist || 'Unknown',
       fmt: fmt,
-      src: 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/' + MUSIC_PATH + '/' + encodeURIComponent(fileName),
+      src: 'https://raw.githubusercontent.com/' + OWNER + '/' + REPO + '/main/' + MUSIC_PATH + '/' + enc,
+      altSrc: 'https://github.com/' + OWNER + '/' + REPO + '/raw/main/' + MUSIC_PATH + '/' + enc,
+      cover: null,
       audioKey: fileName.replace(/\.[^.]+$/, '')
     };
   }
@@ -473,11 +484,47 @@
         names.forEach(function (n) {
           if (!IMAGE_EXTS.some(function (e) { return n.toLowerCase().endsWith(e); })) return;
           var key = n.replace(/\.[^.]+$/, '');
-          map[key] = 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/' + COVERS_PATH + '/' + encodeURIComponent(n);
+          map[key] = 'https://raw.githubusercontent.com/' + OWNER + '/' + REPO + '/main/' + COVERS_PATH + '/' + encodeURIComponent(n);
         });
         return map;
       })
       .catch(function () { return {}; }); // 目录不存在不算错
+  }
+
+  // ---- 本地缓存：避免每次打开页面都消耗 API 配额 ----
+  function saveCache(list) {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ savedAt: Date.now(), tracks: list }));
+    } catch (e) { /* 忽略 */ }
+  }
+
+  function readCache() {
+    try {
+      var raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      if (!obj || !obj.tracks || !obj.tracks.length) return null;
+      return obj;
+    } catch (e) { return null; }
+  }
+
+  // 封面匹配顺序：歌曲文件名去扩展名 -> 歌曲标题 -> 文件名第一段前缀（如 Jay-星晴 -> Jay）
+  function pickCover(t, covers) {
+    if (covers[t.audioKey]) return covers[t.audioKey];
+    if (covers[t.title]) return covers[t.title];
+    var dash = t.audioKey.indexOf('-');
+    if (dash > 0) {
+      var prefix = t.audioKey.substring(0, dash);
+      if (covers[prefix]) return covers[prefix];
+    }
+    return null;
+  }
+
+  function applyCovers(list, covers) {
+    list.forEach(function (t) {
+      t.cover = pickCover(t, covers);
+    });
+    return list;
   }
 
   function setCover(url) {
@@ -545,6 +592,7 @@
 
   function loadTrack(i, autoplay) {
     current = i;
+    switchedAlt = false;
     var t = tracks[i];
     audio.src = t.src;
     coverTitle.textContent = t.title;
@@ -562,7 +610,7 @@
     errorBox.style.display = 'block';
     errorBox.innerHTML = msg +
       '<br><button class="retry" id="retryBtn">重新加载</button>';
-    document.getElementById('retryBtn').addEventListener('click', init);
+    document.getElementById('retryBtn').addEventListener('click', refresh);
     playlist.innerHTML = '';
     libCount.textContent = '0 tracks';
     emptyTip.style.display = 'none';
@@ -571,6 +619,47 @@
     coverFormat.textContent = '--';
     setCover(null);
     footer.textContent = 'Load failed';
+  }
+
+  // 后台刷新列表：成功则更新缓存与界面；失败则保留现有缓存，仅提示
+  function refresh() {
+    errorBox.style.display = 'none';
+    footer.textContent = '正在刷新曲目列表...';
+    Promise.all([loadTracksFromRepo(), loadCoversFromRepo()])
+      .then(function (arr) {
+        var list = applyCovers(arr[0].list, arr[1]);
+        tracks = list;
+        current = 0;
+        saveCache(list);
+        renderPlaylist();
+        loadTrack(0, false);
+        footer.textContent = list.length + ' tracks (' + arr[0].source + ')';
+      })
+      .catch(function (err) {
+        if (tracks.length) {
+          footer.textContent = tracks.length + ' tracks（缓存模式，刷新失败：' + err.message + '）';
+        } else {
+          footer.textContent = 'Load failed';
+          showError('无法从仓库加载曲目列表（' + err.message + '）。<br>请检查网络后点击下方按钮重试。');
+        }
+      });
+  }
+
+  // 初始化：缓存优先立即显示，随后后台静默刷新
+  function init() {
+    var cached = readCache();
+    if (cached) {
+      tracks = cached.tracks;
+      renderPlaylist();
+      loadTrack(0, false);
+      footer.textContent = tracks.length + ' tracks（缓存 ' + new Date(cached.savedAt).toLocaleTimeString() + '）';
+    } else {
+      loading.style.display = 'block';
+      footer.textContent = 'Loading...';
+    }
+    refresh().then(function () {
+      loading.style.display = 'none';
+    });
   }
 
   function togglePlay() {
@@ -651,6 +740,15 @@
 
   audio.addEventListener('play', function () { playBtn.innerHTML = '&#10074;&#10074;'; });
   audio.addEventListener('pause', function () { playBtn.innerHTML = '&#9654;'; });
+  audio.addEventListener('error', function () {
+    // 主源播放失败时尝试备用源（每个曲目只切换一次）
+    var t = tracks[current];
+    if (t && t.altSrc && !switchedAlt) {
+      switchedAlt = true;
+      audio.src = t.altSrc;
+      if (!audio.paused) audio.play();
+    }
+  });
   audio.addEventListener('ended', function () {
     var mode = getMode().key;
     if (mode === 'repeat-one') {
@@ -689,36 +787,6 @@
   });
 
   searchBox.addEventListener('input', applySearch);
-
-  // 初始化：曲目 + 封面双源加载，无硬编码兜底；全部失败时明确报错
-  function init() {
-    errorBox.style.display = 'none';
-    playlist.innerHTML = '';
-    loading.style.display = 'block';
-    footer.textContent = 'Loading...';
-    Promise.all([loadTracksFromRepo(), loadCoversFromRepo()])
-      .then(function (arr) {
-        var list = arr[0].list;
-        var covers = arr[1];
-        list.forEach(function (t) {
-          t.cover = covers[t.audioKey] || covers[t.title] || null;
-        });
-        tracks = list;
-        footer.textContent = list.length + ' tracks from resources/music (' + arr[0].source + ')';
-      })
-      .catch(function (err) {
-        tracks = [];
-        footer.textContent = 'Load failed';
-        showError('无法从仓库加载曲目列表（' + err.message + '）。<br>请检查网络后点击下方按钮重试。');
-      })
-      .then(function () {
-        loading.style.display = 'none';
-        if (tracks.length) {
-          renderPlaylist();
-          loadTrack(0, false);
-        }
-      });
-  }
 
   init();
 </script>
