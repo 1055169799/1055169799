@@ -484,7 +484,11 @@
         names.forEach(function (n) {
           if (!IMAGE_EXTS.some(function (e) { return n.toLowerCase().endsWith(e); })) return;
           var key = n.replace(/\.[^.]+$/, '');
-          map[key] = 'https://raw.githubusercontent.com/' + OWNER + '/' + REPO + '/main/' + COVERS_PATH + '/' + encodeURIComponent(n);
+          var enc = encodeURIComponent(n);
+          map[key] = {
+            url: 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/' + COVERS_PATH + '/' + enc,
+            alt: 'https://raw.githubusercontent.com/' + OWNER + '/' + REPO + '/main/' + COVERS_PATH + '/' + enc
+          };
         });
         return map;
       })
@@ -527,13 +531,22 @@
     return list;
   }
 
-  function setCover(url) {
-    if (url) {
-      coverImg.src = url;
+  function setCover(c) {
+    if (c) {
+      coverImg.src = c.url;
+      coverImg.onerror = function () {
+        if (c.alt && coverImg.src !== c.alt) {
+          coverImg.src = c.alt;
+        } else {
+          coverImg.style.display = 'none';
+          coverIcon.style.display = 'block';
+        }
+      };
       coverImg.style.display = 'block';
       coverIcon.style.display = 'none';
     } else {
       coverImg.style.display = 'none';
+      coverImg.onerror = null;
       coverImg.removeAttribute('src');
       coverIcon.style.display = 'block';
     }
@@ -548,9 +561,16 @@
         var thumb = document.createElement('span');
         thumb.className = 'thumb';
         var im = document.createElement('img');
-        im.src = t.cover;
+        im.src = t.cover.url;
         im.alt = '';
-        im.onerror = function () { thumb.className = 'num'; thumb.textContent = (i + 1); };
+        im.onerror = function () {
+          if (t.cover.alt && im.src !== t.cover.alt) {
+            im.src = t.cover.alt;
+          } else {
+            thumb.className = 'num';
+            thumb.textContent = (i + 1);
+          }
+        };
         thumb.appendChild(im);
         li.appendChild(thumb);
       } else {
