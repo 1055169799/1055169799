@@ -259,6 +259,27 @@
     padding: 1px 5px;
     flex-shrink: 0;
   }
+  .error-box {
+    background: rgba(255,80,80,.08);
+    border: 1px solid rgba(255,80,80,.35);
+    border-radius: 12px;
+    padding: 18px 14px;
+    font-size: 13px;
+    color: #ff9d9d;
+    line-height: 1.7;
+  }
+  .error-box .retry {
+    display: inline-block;
+    margin-top: 10px;
+    background: #202038;
+    border: 1px solid #2a2a48;
+    color: #ffd700;
+    font-size: 12px;
+    padding: 6px 16px;
+    border-radius: 16px;
+    cursor: pointer;
+  }
+  .error-box .retry:hover { border-color: #ffd700; }
   .empty-tip { text-align: center; color: #6a6a80; font-size: 13px; padding: 20px 0; }
   .loading {
     text-align: center;
@@ -311,6 +332,7 @@
       <ul class="playlist" id="playlist"></ul>
       <div class="loading" id="loading" style="display:none;">Loading tracks...</div>
       <div class="empty-tip" id="emptyTip" style="display:none;">没有匹配的歌曲</div>
+      <div class="error-box" id="errorBox" style="display:none;"></div>
     </div>
   </div>
 
@@ -322,22 +344,23 @@
   var MUSIC_PATH = 'resources/music';
   var COVERS_PATH = 'resources/covers';
 
-  // 兜底曲目（动态加载失败时使用）
-  var STATIC_TRACKS = [
-    { title: '童话镇', artist: '陈一发儿', fmt: 'FLAC', src: 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/resources/music/%E9%99%88%E4%B8%80%E5%8F%91%E5%84%BF_-_%E7%AB%A5%E8%AF%9D%E9%95%87.flac' },
-    { title: '童话镇', artist: '陈一发儿', fmt: 'MP3', src: 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/resources/music/%E9%99%88%E4%B8%80%E5%8F%91%E5%84%BF-%E7%AB%A5%E8%AF%9D%E9%95%87.mp3' },
-    { title: '搁浅', artist: '周杰伦', fmt: 'MP3', src: 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/resources/music/%E6%90%81%E6%B5%85-%E5%91%A8%E6%9D%B0%E4%BC%A6.mp3' },
-    { title: '晴天', artist: '周杰伦', fmt: 'MP3', src: 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/resources/music/%E6%99%B4%E5%A4%A9-%E5%91%A8%E6%9D%B0%E4%BC%A6.mp3' },
-    { title: '夜曲', artist: '周杰伦', fmt: 'FLAC', src: 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/resources/music/%E5%A4%9C%E6%9B%B2-%E5%91%A8%E6%9D%B0%E4%BC%A6.flac' }
-  ];
-
-  // 已知曲目元数据（文件名 -> 标题/歌手），新增歌曲不在列表时自动用文件名作为标题
+  // 已知曲目元数据（文件名 -> 标题/歌手），只用于美化显示；新增歌曲不在列表时自动用文件名作为标题
   var NAME_MAP = {
     '陈一发儿_-_童话镇.flac': { title: '童话镇', artist: '陈一发儿' },
     '陈一发儿-童话镇.mp3': { title: '童话镇', artist: '陈一发儿' },
     '搁浅-周杰伦.mp3': { title: '搁浅', artist: '周杰伦' },
     '晴天-周杰伦.mp3': { title: '晴天', artist: '周杰伦' },
-    '夜曲-周杰伦.flac': { title: '夜曲', artist: '周杰伦' }
+    '夜曲-周杰伦.flac': { title: '夜曲', artist: '周杰伦' },
+    'Jay-可爱女人.flac': { title: '可爱女人', artist: '周杰伦' },
+    'Jay-完美主义.flac': { title: '完美主义', artist: '周杰伦' },
+    'Jay-星晴.flac': { title: '星晴', artist: '周杰伦' },
+    'Jay-娘子.flac': { title: '娘子', artist: '周杰伦' },
+    'Jay-斗牛.flac': { title: '斗牛', artist: '周杰伦' },
+    'Jay-黑色幽默.flac': { title: '黑色幽默', artist: '周杰伦' },
+    'Jay-伊斯坦堡.flac': { title: '伊斯坦堡', artist: '周杰伦' },
+    'Jay-印第安老斑鸠.flac': { title: '印第安老斑鸠', artist: '周杰伦' },
+    'Jay-反方向的钟.flac': { title: '反方向的钟', artist: '周杰伦' },
+    'Jay-龙卷风.flac': { title: '龙卷风', artist: '周杰伦' }
   };
 
   var AUDIO_EXTS = ['.mp3', '.flac', '.wav', '.m4a', '.aac', '.ogg'];
@@ -368,6 +391,7 @@
   var searchBox = document.getElementById('searchBox');
   var loading = document.getElementById('loading');
   var emptyTip = document.getElementById('emptyTip');
+  var errorBox = document.getElementById('errorBox');
   var libCount = document.getElementById('libCount');
   var footer = document.getElementById('footer');
 
@@ -381,53 +405,79 @@
     return m + ':' + (s < 10 ? '0' : '') + s;
   }
 
-  // 动态读取仓库 resources/music 目录，自动生成曲目列表
-  function loadTracksFromRepo() {
-    var url = 'https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/' + MUSIC_PATH;
-    return fetch(url)
-      .then(function (resp) {
-        if (!resp.ok) throw new Error('API error: ' + resp.status);
-        return resp.json();
+  // 源1：GitHub Contents API（实时权威，匿名限流 60 次/小时）
+  function listDirFromGitHub(path) {
+    return fetch('https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/' + path)
+      .then(function (r) {
+        if (!r.ok) throw new Error('GitHub API ' + r.status);
+        return r.json();
       })
       .then(function (items) {
-        var files = items.filter(function (it) {
-          return it.type === 'file' && AUDIO_EXTS.some(function (e) { return it.name.toLowerCase().endsWith(e); });
-        });
-        if (!files.length) throw new Error('no audio files');
-        return files.map(function (f) {
-          var meta = NAME_MAP[f.name] || {};
-          var fmt = f.name.split('.').pop().toUpperCase();
-          var src = 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/' + MUSIC_PATH + '/' + encodeURIComponent(f.name);
-          return {
-            title: meta.title || f.name.replace(/\.[^.]+$/, ''),
-            artist: meta.artist || 'Unknown',
-            fmt: fmt,
-            src: src,
-            audioKey: f.name.replace(/\.[^.]+$/, '')
-          };
-        });
+        return items.filter(function (it) { return it.type === 'file'; }).map(function (it) { return it.name; });
       });
   }
 
-  // 动态读取 resources/covers 目录，文件名（去扩展名）-> 封面 URL；目录不存在时返回空映射，不影响歌曲加载
-  function loadCoversFromRepo() {
-    var url = 'https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/' + COVERS_PATH;
-    return fetch(url)
-      .then(function (resp) {
-        if (!resp.ok) throw new Error('covers: ' + resp.status);
-        return resp.json();
+  // 源2：jsDelivr 数据接口（无匿名限流，CORS 开放；内容缓存最多几分钟）
+  function listDirFromJsDelivr(path) {
+    var prefix = path + '/';
+    return fetch('https://data.jsdelivr.com/v1/packages/gh/' + OWNER + '/' + REPO + '@main')
+      .then(function (r) {
+        if (!r.ok) throw new Error('jsDelivr API ' + r.status);
+        return r.json();
       })
-      .then(function (items) {
+      .then(function (data) {
+        return (data.files || [])
+          .filter(function (f) { return f.type === 'file' && f.name.indexOf(prefix) === 0; })
+          .map(function (f) { return f.name.substring(prefix.length); });
+      });
+  }
+
+  function listDir(path) {
+    return listDirFromGitHub(path).catch(function () {
+      return listDirFromJsDelivr(path);
+    });
+  }
+
+  function buildTrack(fileName) {
+    var meta = NAME_MAP[fileName] || {};
+    var fmt = fileName.split('.').pop().toUpperCase();
+    return {
+      title: meta.title || fileName.replace(/\.[^.]+$/, ''),
+      artist: meta.artist || 'Unknown',
+      fmt: fmt,
+      src: 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/' + MUSIC_PATH + '/' + encodeURIComponent(fileName),
+      audioKey: fileName.replace(/\.[^.]+$/, '')
+    };
+  }
+
+  function loadTracksFromRepo() {
+    var source = 'GitHub API';
+    return listDirFromGitHub(MUSIC_PATH)
+      .catch(function () {
+        source = 'jsDelivr API';
+        return listDirFromJsDelivr(MUSIC_PATH);
+      })
+      .then(function (names) {
+        var files = names.filter(function (n) {
+          return AUDIO_EXTS.some(function (e) { return n.toLowerCase().endsWith(e); });
+        });
+        if (!files.length) throw new Error(MUSIC_PATH + ' 目录中没有音频文件');
+        return { list: files.map(buildTrack), source: source };
+      });
+  }
+
+  function loadCoversFromRepo() {
+    return listDir(COVERS_PATH)
+      .then(function (names) {
         var map = {};
-        items.forEach(function (it) {
-          if (it.type !== 'file') return;
-          if (!IMAGE_EXTS.some(function (e) { return it.name.toLowerCase().endsWith(e); })) return;
-          var key = it.name.replace(/\.[^.]+$/, '');
-          map[key] = 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/' + COVERS_PATH + '/' + encodeURIComponent(it.name);
+        names.forEach(function (n) {
+          if (!IMAGE_EXTS.some(function (e) { return n.toLowerCase().endsWith(e); })) return;
+          var key = n.replace(/\.[^.]+$/, '');
+          map[key] = 'https://cdn.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@main/' + COVERS_PATH + '/' + encodeURIComponent(n);
         });
         return map;
       })
-      .catch(function () { return {}; });
+      .catch(function () { return {}; }); // 目录不存在不算错
   }
 
   function setCover(url) {
@@ -506,6 +556,21 @@
       lis[k].classList.toggle('active', k === i);
     }
     if (autoplay) audio.play();
+  }
+
+  function showError(msg) {
+    errorBox.style.display = 'block';
+    errorBox.innerHTML = msg +
+      '<br><button class="retry" id="retryBtn">重新加载</button>';
+    document.getElementById('retryBtn').addEventListener('click', init);
+    playlist.innerHTML = '';
+    libCount.textContent = '0 tracks';
+    emptyTip.style.display = 'none';
+    coverTitle.textContent = 'My Music Player';
+    coverArtist.textContent = '无法加载曲目';
+    coverFormat.textContent = '--';
+    setCover(null);
+    footer.textContent = 'Load failed';
   }
 
   function togglePlay() {
@@ -625,33 +690,37 @@
 
   searchBox.addEventListener('input', applySearch);
 
-  // 初始化：音乐目录 + 封面目录并行加载，失败回退静态列表
-  loading.style.display = 'block';
-  Promise.all([loadTracksFromRepo(), loadCoversFromRepo()])
-    .then(function (arr) {
-      var list = arr[0];
-      var covers = arr[1];
-      list.forEach(function (t) {
-        t.cover = covers[t.audioKey] || covers[t.title] || null;
+  // 初始化：曲目 + 封面双源加载，无硬编码兜底；全部失败时明确报错
+  function init() {
+    errorBox.style.display = 'none';
+    playlist.innerHTML = '';
+    loading.style.display = 'block';
+    footer.textContent = 'Loading...';
+    Promise.all([loadTracksFromRepo(), loadCoversFromRepo()])
+      .then(function (arr) {
+        var list = arr[0].list;
+        var covers = arr[1];
+        list.forEach(function (t) {
+          t.cover = covers[t.audioKey] || covers[t.title] || null;
+        });
+        tracks = list;
+        footer.textContent = list.length + ' tracks from resources/music (' + arr[0].source + ')';
+      })
+      .catch(function (err) {
+        tracks = [];
+        footer.textContent = 'Load failed';
+        showError('无法从仓库加载曲目列表（' + err.message + '）。<br>请检查网络后点击下方按钮重试。');
+      })
+      .then(function () {
+        loading.style.display = 'none';
+        if (tracks.length) {
+          renderPlaylist();
+          loadTrack(0, false);
+        }
       });
-      tracks = list;
-      footer.textContent = 'Auto-loaded ' + list.length + ' tracks + ' + Object.keys(covers).length + ' covers';
-    })
-    .catch(function () {
-      tracks = STATIC_TRACKS;
-      var covers = {};
-      tracks.forEach(function (t) {
-        var key = decodeURIComponent(t.src).split('/').pop().replace(/\.[^.]+$/, '');
-        t.audioKey = key;
-        t.cover = covers[key] || covers[t.title] || null;
-      });
-      footer.textContent = 'Loaded built-in tracks (offline mode)';
-    })
-    .then(function () {
-      loading.style.display = 'none';
-      renderPlaylist();
-      loadTrack(0, false);
-    });
+  }
+
+  init();
 </script>
 </body>
 </html>
