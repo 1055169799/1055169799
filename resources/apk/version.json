@@ -1,7 +1,7 @@
 {
-  "latestVersionCode": 16,
-  "latestVersionName": "1.6",
-  "apkName": "JayMusic_v1.6_release.apk",
-  "apkUrl": "https://1055169799.github.io/1055169799/resources/apk/JayMusic_v1.6_release.apk",
-  "releaseNotes": "1.6 正式版：关于对话框改为自定义布局（App发布页/检测新版本/关闭/退出应用），支持在线检测新版本并下载安装"
+  "latestVersionCode": 17,
+  "latestVersionName": "1.7",
+  "apkName": "JayMusic_v1.7_release.apk",
+  "apkUrl": "https://1055169799.github.io/1055169799/resources/apk/JayMusic_v1.7_release.apk",
+  "releaseNotes": "1.7 正式版：关于对话框文字颜色优化、移除发布地址文本行"
 }
