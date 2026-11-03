@@ -350,26 +350,6 @@
   var MUSIC_PATH = 'resources/music';
   var COVERS_PATH = 'resources/covers';
   var CACHE_KEY = 'marvis_playlist_cache_v1';
-
-  // 已知曲目元数据（文件名 -> 标题/歌手），只用于美化显示；新增歌曲不在列表时自动用文件名作为标题
-  var NAME_MAP = {
-    '陈一发儿_-_童话镇.flac': { title: '童话镇', artist: '陈一发儿' },
-    '陈一发儿-童话镇.mp3': { title: '童话镇', artist: '陈一发儿' },
-    '搁浅-周杰伦.mp3': { title: '搁浅', artist: '周杰伦' },
-    '晴天-周杰伦.mp3': { title: '晴天', artist: '周杰伦' },
-    '夜曲-周杰伦.flac': { title: '夜曲', artist: '周杰伦' },
-    'Jay-可爱女人.flac': { title: '可爱女人', artist: '周杰伦' },
-    'Jay-完美主义.flac': { title: '完美主义', artist: '周杰伦' },
-    'Jay-星晴.flac': { title: '星晴', artist: '周杰伦' },
-    'Jay-娘子.flac': { title: '娘子', artist: '周杰伦' },
-    'Jay-斗牛.flac': { title: '斗牛', artist: '周杰伦' },
-    'Jay-黑色幽默.flac': { title: '黑色幽默', artist: '周杰伦' },
-    'Jay-伊斯坦堡.flac': { title: '伊斯坦堡', artist: '周杰伦' },
-    'Jay-印第安老斑鸠.flac': { title: '印第安老斑鸠', artist: '周杰伦' },
-    'Jay-反方向的钟.flac': { title: '反方向的钟', artist: '周杰伦' },
-    'Jay-龙卷风.flac': { title: '龙卷风', artist: '周杰伦' }
-  };
-
   var AUDIO_EXTS = ['.mp3', '.flac', '.wav', '.m4a', '.aac', '.ogg'];
   var IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
 
@@ -463,7 +443,7 @@
     var enc = encodeURIComponent(fileName);
     return {
       title: meta.title || fileName.replace(/\.[^.]+$/, ''),
-      artist: meta.artist || 'Unknown',
+      artist: meta.artist || '周杰伦',
       fmt: fmt,
       src: PAGE_BASE + MUSIC_PATH + '/' + enc,
       altSrc: 'https://raw.githubusercontent.com/' + OWNER + '/' + REPO + '/main/' + MUSIC_PATH + '/' + enc,
