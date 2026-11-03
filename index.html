@@ -406,9 +406,13 @@
   var current = 0;
   var switchedAlt = false;
 
-  // 下一首预加载器：播放当前曲时提前拉取下一首元数据，切歌近乎无延迟
-  var prefetcher = new Audio();
-  prefetcher.preload = 'metadata';
+  // 预加载器组：播放当前曲时提前拉取后续曲目元数据，切歌近乎无延迟
+  var prefetchers = [];
+  for (var pi = 0; pi < 3; pi++) {
+    var pf = new Audio();
+    pf.preload = 'metadata';
+    prefetchers.push(pf);
+  }
 
   function fmtTime(sec) {
     if (isNaN(sec)) return '0:00';
@@ -631,10 +635,8 @@
       lis[k].classList.toggle('active', k === i);
     }
     if (autoplay) audio.play();
-    // 预加载下一首（preload=metadata 只拉文件头部，流量极小）
-    var n = nextIndex();
-    prefetcher.src = tracks[n].src;
-    prefetcher.load();
+    // 预加载后续曲目
+    preloadNext();
   }
 
   function showError(msg) {
@@ -703,12 +705,18 @@
 
   function getMode() { return MODES[modeIndex]; }
 
-  // 根据当前播放模式计算下一首索引（用于预加载）
-  function nextIndex() {
+  // 预加载后续曲目（按当前播放模式取序），preload=metadata 只拉文件头部
+  function preloadNext() {
+    if (!tracks.length) return;
     var mode = getMode().key;
-    if (mode === 'random') return Math.floor(Math.random() * tracks.length);
-    if (mode === 'repeat-one') return current;
-    return (current + 1) % tracks.length;
+    for (var k = 1; k <= prefetchers.length; k++) {
+      var idx;
+      if (mode === 'random') idx = Math.floor(Math.random() * tracks.length);
+      else if (mode === 'repeat-one') idx = current;
+      else idx = (current + k) % tracks.length;
+      prefetchers[k - 1].src = tracks[idx].src;
+      prefetchers[k - 1].load();
+    }
   }
 
   function updateModeUI() {
