@@ -332,7 +332,7 @@
     <div class="library">
       <div class="lib-head">
         <h2>PLAYLIST</h2>
-        <span class="lib-count" id="libCount">0 tracks</span>
+        <span class="lib-count" id="libCount">无损歌曲文件较大，请注意流量消耗</span>
       </div>
       <input class="search-box" id="searchBox" type="text" placeholder="搜索歌曲 / 歌手...">
       <ul class="playlist" id="playlist"></ul>
@@ -604,7 +604,7 @@
       li.addEventListener('click', function () { loadTrack(Number(this.dataset.i)); });
       playlist.appendChild(li);
     });
-    libCount.textContent = tracks.length + ' tracks';
+    libCount.textContent = '无损歌曲文件较大，请注意流量消耗';
     applySearch();
   }
 
@@ -645,7 +645,7 @@
       '<br><button class="retry" id="retryBtn">重新加载</button>';
     document.getElementById('retryBtn').addEventListener('click', refresh);
     playlist.innerHTML = '';
-    libCount.textContent = '0 tracks';
+    libCount.textContent = '无损歌曲文件较大，请注意流量消耗';
     emptyTip.style.display = 'none';
     coverTitle.textContent = 'My Music Player';
     coverArtist.textContent = '无法加载曲目';
