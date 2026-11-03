@@ -406,6 +406,10 @@
   var current = 0;
   var switchedAlt = false;
 
+  // 下一首预加载器：播放当前曲时提前拉取下一首元数据，切歌近乎无延迟
+  var prefetcher = new Audio();
+  prefetcher.preload = 'metadata';
+
   function fmtTime(sec) {
     if (isNaN(sec)) return '0:00';
     var m = Math.floor(sec / 60);
@@ -627,6 +631,10 @@
       lis[k].classList.toggle('active', k === i);
     }
     if (autoplay) audio.play();
+    // 预加载下一首（preload=metadata 只拉文件头部，流量极小）
+    var n = nextIndex();
+    prefetcher.src = tracks[n].src;
+    prefetcher.load();
   }
 
   function showError(msg) {
@@ -694,6 +702,14 @@
   }
 
   function getMode() { return MODES[modeIndex]; }
+
+  // 根据当前播放模式计算下一首索引（用于预加载）
+  function nextIndex() {
+    var mode = getMode().key;
+    if (mode === 'random') return Math.floor(Math.random() * tracks.length);
+    if (mode === 'repeat-one') return current;
+    return (current + 1) % tracks.length;
+  }
 
   function updateModeUI() {
     modeBtn.textContent = '模式：' + getMode().name;
