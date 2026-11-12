@@ -53,6 +53,8 @@
   }
   .cover-title { margin-top: 14px; font-size: 20px; font-weight: 700; color: #fff;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cover-artist { margin-top: 6px; font-size: 13px; color: #9a9ab0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .progress-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
   .time { font-size: 11px; color: #8a8aa0; width: 38px; text-align: center; flex-shrink: 0; font-variant-numeric: tabular-nums; }
@@ -178,6 +180,7 @@
         <img class="cover-img" id="coverImg" alt="cover">
         <div class="cover-icon" id="coverIcon">&#9835;</div>
         <div class="cover-title" id="coverTitle">让音乐回归纯粹</div>
+        <div class="cover-artist" id="coverArtist"></div>
       </div>
     </div>
 
@@ -690,6 +693,8 @@
 
   function showSong(song) {
     $('coverTitle').textContent = song.name;
+    var arEl = $('coverArtist');
+    if (arEl) arEl.textContent = (song && song.artist) ? song.artist : '周杰伦';
     var p = picUrl(song.pic);
     var img = $('coverImg');
     img.setAttribute('data-rid', ridOf(song) || song.name);
@@ -723,6 +728,8 @@
     if (!$('coverTitle').textContent || $('coverTitle').textContent === 'Jay Chou') {
       $('coverTitle').textContent = alb.name || 'Jay';
     }
+    var arBox = $('coverArtist');
+    if (arBox && !arBox.textContent) arBox.textContent = '周杰伦';
   }
 
   function markActive() {
