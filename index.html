@@ -256,8 +256,10 @@
   var S = {
     albums: [],          // 专辑列表
     songs: {},           // albumId -> 歌曲数组
-    queue: [],           // 当前播放队列（对象数组）
-    idx: -1,
+    queue: [],           // 当前视图列表（专辑曲目 / 全部歌曲，仅用于渲染）
+    playQueue: [],       // 正在播放的队列（与视图队列分离，浏览专辑不会打断播放）
+    playIdx: -1,         // 播放队列中的索引
+    curSong: null,       // 当前播放歌曲对象
     quality: (function (q) { return q === 'higher' ? 'exhigh' : (q || 'exhigh'); })(localStorage.getItem('jay_quality')),
     mode: (function (m) { return ['list', 'one', 'random', 'shuffle'].indexOf(m) >= 0 ? m : 'list'; })(localStorage.getItem('jay_mode')),
     tab: 'album',
@@ -425,7 +427,9 @@
     S.tab = 'album'; S.curAlbum = null;
     $('libTitle').textContent = '专辑';
     $('libCount').textContent = S.albums.length + ' 张';
-    if (S.idx < 0) showDefaultCover();
+    // 回到专辑列表时封面保持当前播放歌曲；只有从未播放过才回落到默认《Jay》封面
+    if (!S.curSong) showDefaultCover();
+    else if ($('coverImg').getAttribute('data-rid') !== ridOf(S.curSong)) showSong(S.curSong);
     var kw = $('search').value.trim().toLowerCase();
     var list = S.albums.filter(function (a) { return !kw || a.name.toLowerCase().indexOf(kw) >= 0; });
     if (!list.length) { $('view').innerHTML = '<div class="empty-tip">没有匹配的专辑</div>'; return; }
@@ -455,7 +459,7 @@
     S.curAlbum = album;
     $('view').innerHTML = '<div class="loading">正在加载《' + esc(album.name) + '》…</div>';
     loadAlbumSongs(album).then(function (arr) {
-      S.queue = arr.slice(); S.idx = -1;
+      S.queue = arr.slice();
       if (S.mode === 'shuffle') shuffleQueue();
       renderSongsView(S.queue, album);
     }).catch(function (e) {
@@ -474,6 +478,7 @@
     $('view').innerHTML = html;
     $('backToAlb').onclick = function () { renderAlbums(); };
     bindSongRows(arr, false);
+    markActive();
   }
 
   function songListHtml(arr, withAlbum) {
@@ -519,7 +524,7 @@
       if (!list.length) {
         $('view').innerHTML = '<div class="empty-tip">没有匹配的歌曲</div>';
       } else {
-        S.queue = list; S.idx = -1;
+        S.queue = list;
         if (S.mode === 'shuffle') shuffleQueue();
         $('view').innerHTML = songListHtml(S.queue, true);
         bindSongRows(S.queue, true);
@@ -602,10 +607,20 @@
   /* ================= 播放 ================= */
   var playToken = 0;
 
+  /* 点击列表中的歌曲：把当前视图列表快照为播放队列，再播放其中第 index 首 */
   function play(index, autoplay) {
-    var song = (S.tab === 'song' ? S.queue : S.queue)[index];
+    var song = S.queue[index];
     if (!song) return;
-    S.idx = index;
+    S.playQueue = S.queue.slice();
+    playAt(index, autoplay);
+  }
+
+  /* 按播放队列索引播放（上一首/下一首/自动续播都走这里，与当前视图无关） */
+  function playAt(index, autoplay) {
+    var song = S.playQueue[index];
+    if (!song) return;
+    S.playIdx = index;
+    S.curSong = song;
     markActive();
     showSong(song);
     var lv = pickLevel(song, S.quality);
@@ -631,8 +646,8 @@
 
   function preloadNext() {
     var ni = nextIndex();
-    if (ni < 0 || ni === S.idx) return;
-    var next = S.queue[ni];
+    if (ni < 0 || ni === S.playIdx) return;
+    var next = S.playQueue[ni];
     if (!next) return;
     var lv = pickLevel(next, S.quality);
     resolveUrl(next, lv).catch(function () {});
@@ -640,34 +655,44 @@
 
   /* 播放模式：list 列表播放 / one 单曲循环 / random 随机播放 / shuffle 打乱排序 */
   function nextIndex() {
-    var n = S.queue.length;
+    var n = S.playQueue.length;
     if (!n) return -1;
-    if (S.mode === 'one') return S.idx;
+    if (S.mode === 'one') return S.playIdx;
     if (S.mode === 'random') {
       if (n === 1) return 0;
-      var r = S.idx;
-      while (r === S.idx) { r = Math.floor(Math.random() * n); }
+      var r = S.playIdx;
+      while (r === S.playIdx) { r = Math.floor(Math.random() * n); }
       return r;
     }
-    if (S.idx < 0) return 0;
-    return S.idx + 1 < n ? S.idx + 1 : -1;
+    if (S.playIdx < 0) return 0;
+    return S.playIdx + 1 < n ? S.playIdx + 1 : -1;
   }
 
   function shuffleQueue() {
     var q = S.queue;
-    if (q.length < 2) return;
-    var cur = S.idx >= 0 ? q[S.idx] : null;
-    for (var i = q.length - 1; i > 0; i--) {
-      var j = Math.floor(Math.random() * (i + 1));
-      var t = q[i]; q[i] = q[j]; q[j] = t;
+    if (q.length > 1) {
+      for (var i = q.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var t = q[i]; q[i] = q[j]; q[j] = t;
+      }
     }
-    if (cur) S.idx = q.indexOf(cur);
+    // 播放队列同步打乱，并保持当前播放歌曲不被打断
+    var pq = S.playQueue;
+    if (pq.length > 1) {
+      var cur = S.playIdx >= 0 ? pq[S.playIdx] : null;
+      for (var k = pq.length - 1; k > 0; k--) {
+        var m = Math.floor(Math.random() * (k + 1));
+        var u = pq[k]; pq[k] = pq[m]; pq[m] = u;
+      }
+      if (cur) S.playIdx = pq.indexOf(cur);
+    }
   }
 
   function showSong(song) {
     $('coverTitle').textContent = song.name;
     var p = picUrl(song.pic);
     var img = $('coverImg');
+    img.setAttribute('data-rid', ridOf(song) || song.name);
     if (p) {
       img.style.display = 'block';
       img.src = p;
@@ -690,19 +715,27 @@
     var p = picUrl(alb.pic);
     var img = $('coverImg');
     if (!p) return;
+    img.removeAttribute('data-rid');
     img.style.display = 'block';
     img.src = p;
     img.onerror = function () { img.style.display = 'none'; $('coverIcon').style.display = 'block'; };
     $('coverIcon').style.display = 'none';
     if (!$('coverTitle').textContent || $('coverTitle').textContent === 'Jay Chou') {
-      $('coverTitle').textContent = alb.name || '让音乐回归纯粹';
+      $('coverTitle').textContent = alb.name || 'Jay';
     }
   }
 
   function markActive() {
+    // 高亮当前播放歌曲在当前视图列表中的位置（歌曲不在本列表则全不高亮）
+    var cur = S.curSong, at = -1;
+    if (cur) {
+      for (var k = 0; k < S.queue.length; k++) {
+        if (S.queue[k] === cur) { at = k; break; }
+      }
+    }
     var rows = $('view').querySelectorAll('.playlist li');
     for (var i = 0; i < rows.length; i++) {
-      rows[i].classList.toggle('active', +rows[i].getAttribute('data-i') === S.idx);
+      rows[i].classList.toggle('active', +rows[i].getAttribute('data-i') === at);
     }
   }
 
@@ -722,13 +755,13 @@
   }
 
   function setQuality(key) {
-    var cur = S.queue[S.idx];
+    var cur = S.curSong;
     if (cur && !levelsOf(cur)[key]) return;
     S.quality = key;
     localStorage.setItem('jay_quality', key);
-    if (S.idx >= 0) {
+    if (S.playIdx >= 0) {
       var wasPlaying = !audio.paused;
-      play(S.idx, wasPlaying);
+      playAt(S.playIdx, wasPlaying);
     } else {
       renderQuality(null, key);
     }
@@ -789,15 +822,19 @@
 
   /* ================= 事件 ================= */
   $('btnPlay').onclick = function () {
-    if (!audio.src) { if (S.queue.length) play(0); return; }
+    if (!audio.src) {
+      if (S.playQueue.length) playAt(S.playIdx >= 0 ? S.playIdx : 0);
+      else if (S.queue.length) play(0);
+      return;
+    }
     if (audio.paused) audio.play(); else audio.pause();
   };
   $('btnPrev').onclick = function () {
-    if (S.idx > 0) play(S.idx - 1);
+    if (S.playIdx > 0) playAt(S.playIdx - 1);
   };
   $('btnNext').onclick = function () {
     var ni = nextIndex();
-    if (ni >= 0 && ni !== S.idx) play(ni);
+    if (ni >= 0 && ni !== S.playIdx) playAt(ni);
   };
 
   audio.addEventListener('play', function () { setPlaying(true); });
@@ -818,14 +855,14 @@
       return;
     }
     var ni = nextIndex();
-    if (ni >= 0 && ni !== S.idx) play(ni);
+    if (ni >= 0 && ni !== S.playIdx) playAt(ni);
     else setPlaying(false);
   });
   audio.addEventListener('error', function () {
-    if (S.idx < 0) return;
+    if (S.playIdx < 0) return;
     if (S.fallbackTried) { setFormatText('播放失败', true); return; }
     S.fallbackTried = true;
-    var song = S.queue[S.idx];
+    var song = S.curSong;
     if (!song) return;
     var lv = pickLevel(song, S.quality);
     var t = ++playToken;
