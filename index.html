@@ -495,6 +495,8 @@
   function levelsOf(song) {
     if (!song || song.src === 'net') return { lossless: true, exhigh: true, standard: true };
     var f = String(song.formats || '').toUpperCase();
+    /* 酷我搜索接口不返回 FORMATS，无法预判档位：先按请求档位取，解析端会逐档降级 */
+    if (!f) return { lossless: true, exhigh: true, standard: true };
     var hasFlac = f.indexOf('FLAC') >= 0;
     var hasMp3 = f.indexOf('MP3H') >= 0 || f.indexOf('MP3128') >= 0;
     return { lossless: hasFlac, exhigh: hasMp3 || hasFlac, standard: true };
@@ -1131,25 +1133,36 @@
   }
 
   function resolveKw(song, lv, ck) {
+    /* 逐档降级：请求档位取不到就退一档，保证任何一首都能落到能播的码率 */
+    var ALL = ['lossless', 'exhigh', 'standard'];
+    var st = ALL.indexOf(lv);
+    if (st < 0) st = ALL.length - 1;
+    var levels = ALL.slice(st);
     return new Promise(function (resolve, reject) {
-      var order = ['a', 'b', 'c'];
-      var i = 0;
-      function tryNext() {
-        if (i >= order.length) { reject(new Error('全部音源均不可用')); return; }
-        var key = order[i++];
-        fetch(buildSrcUrl(key, song, lv), { cache: 'no-store' })
-          .then(function (r) { return r.text(); })
-          .then(function (txt) {
-            var url = parseSrc(txt);
-            if (!url) throw new Error('empty');
-            if (encSrc(url)) throw new Error('encrypted');
-            if (!/^https?:/i.test(url)) throw new Error('bad');
-            Core.urlCache[ck] = { url: url, t: Date.now() };
-            resolve(url);
-          })
-          .catch(function () { tryNext(); });
+      var li = 0;
+      function nextLevel() {
+        if (li >= levels.length) { reject(new Error('全部音源均不可用')); return; }
+        var cur = levels[li++];
+        var order = ['a', 'b', 'c'];
+        var i = 0;
+        function tryNext() {
+          if (i >= order.length) { nextLevel(); return; }
+          var key = order[i++];
+          fetch(buildSrcUrl(key, song, cur), { cache: 'no-store' })
+            .then(function (r) { return r.text(); })
+            .then(function (txt) {
+              var url = parseSrc(txt);
+              if (!url) throw new Error('empty');
+              if (encSrc(url)) throw new Error('encrypted');
+              if (!/^https?:/i.test(url)) throw new Error('bad');
+              Core.urlCache[ck] = { url: url, t: Date.now() };
+              resolve(url);
+            })
+            .catch(function () { tryNext(); });
+        }
+        tryNext();
       }
-      tryNext();
+      nextLevel();
     });
   }
 
