@@ -399,8 +399,10 @@
       S.albums = cached;
       sortAlbums();
       renderAlbums();
+      startPreload();   // 打开页面立刻预热全部曲目，"全部歌曲"无需再等
       // 静默刷新：只更新数据，用户已进入曲目页时不打断
       fetchAlbums().then(function () {
+        startPreload();
         if (S.tab === 'album' && !S.curAlbum) renderAlbums();
       }).catch(function () {});
       return;
@@ -408,6 +410,7 @@
     $('view').innerHTML = '<div class="loading">正在获取专辑列表…</div>';
     fetchAlbums().then(function () {
       renderAlbums();
+      startPreload();
     }).catch(function (e) {
       $('view').innerHTML = '<div class="error-box">专辑列表加载失败：' + e.message +
         '<br><span class="retry" id="retryAlb">重试</span></div>';
@@ -560,22 +563,34 @@
       }
     }
 
-    // 已有缓存先显示，剩余专辑后台串行补齐，补完按当前搜索词重渲染
-    if (needMore && !preloadPromise) {
-      var kwAt = $('search').value;
-      preloadAll().then(function () {
-        if (S.tab === 'song' && $('search').value === kwAt) renderAllSongs();
+    // 已有缓存先显示，剩余专辑后台串行补齐，补完重渲染（页面打开时已自动开始预热）
+    if (needMore && !S.watchPreload) {
+      S.watchPreload = true;
+      startPreload().then(function () {
+        S.watchPreload = false;
+        if (S.tab === 'song') renderAllSongs();
       });
     }
+  }
+
+  /* 页面打开即预热：自动把周杰伦全部专辑曲目拉齐，点开"全部歌曲"时直接可用 */
+  function startPreload() {
+    if (!S.albums.length) return Promise.resolve();
+    if (S.allDone && Object.keys(S.songs).length >= S.albums.length) return Promise.resolve();
+    if (preloadPromise && preloadPromise.__running) return preloadPromise;
+    return preloadAll();
   }
 
   /* 串行、限速地载入所有专辑曲目（仅用于"全部歌曲"与搜索，避免一次性并发打满） */
   var preloadPromise = null;
   function preloadAll() {
-    if (preloadPromise) return preloadPromise;
+    if (preloadPromise && preloadPromise.__running) return preloadPromise;
+    if (S.allDone && Object.keys(S.songs).length >= S.albums.length) return Promise.resolve();
     var i = 0;
     var total = S.albums.length;
-    preloadPromise = new Promise(function (resolve) {
+    if (!total) return Promise.resolve();
+    S.allDone = false;
+    var p = new Promise(function (resolve) {
       function step() {
         if (i >= total) { S.allDone = true; resolve(); return; }
         var a = S.albums[i++];
@@ -585,7 +600,10 @@
       }
       step();
     });
-    return preloadPromise;
+    p.__running = true;
+    preloadPromise = p;
+    p.then(function () { p.__running = false; }, function () { p.__running = false; });
+    return p;
   }
 
   /* ================= 音源解析 ================= */
