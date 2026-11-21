@@ -586,19 +586,28 @@
   function preloadAll() {
     if (preloadPromise && preloadPromise.__running) return preloadPromise;
     if (S.allDone && Object.keys(S.songs).length >= S.albums.length) return Promise.resolve();
-    var i = 0;
     var total = S.albums.length;
     if (!total) return Promise.resolve();
     S.allDone = false;
+    var next = 0, doneCnt = 0, inFlight = 0, CONC = 3;
     var p = new Promise(function (resolve) {
-      function step() {
-        if (i >= total) { S.allDone = true; resolve(); return; }
-        var a = S.albums[i++];
-        if (S.tab === 'song' && $('libCount')) $('libCount').textContent = '载入中 ' + i + '/' + total;
-        if (S.songs[a.id]) { setTimeout(step, 25); return; }
-        loadAlbumSongs(a).catch(function () {}).then(function () { setTimeout(step, 180); });
+      function pump() {
+        if (doneCnt >= total) { S.allDone = true; resolve(); return; }
+        while (inFlight < CONC && next < total) {
+          var a = S.albums[next++];
+          if (S.songs[a.id]) { doneCnt++; continue; }
+          inFlight++;
+          (function (al) {
+            loadAlbumSongs(al).catch(function () {}).then(function () {
+              inFlight--; doneCnt++;
+              if (S.tab === 'song' && $('libCount')) $('libCount').textContent = '载入中 ' + doneCnt + '/' + total;
+              setTimeout(pump, 40);
+            });
+          })(a);
+        }
+        if (next >= total && inFlight === 0 && doneCnt >= total) { S.allDone = true; resolve(); }
       }
-      step();
+      pump();
     });
     p.__running = true;
     preloadPromise = p;
