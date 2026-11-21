@@ -89,7 +89,8 @@
     -webkit-appearance: none; width: 11px; height: 11px; border-radius: 50%; background: #ffd700; cursor: pointer;
   }
 
-  .queue-row { display: flex; justify-content: center; margin-bottom: 12px; }
+  .quality-line { display: flex; align-items: center; gap: 8px; margin-top: 9px; }
+  .quality-line .qlink { margin-left: auto; flex: none; white-space: nowrap; }
   .qlink {
     display: inline-flex; align-items: center; gap: 7px; background: #202038;
     border: 1px solid #2a2a48; border-radius: 999px; color: #c8c8e0;
@@ -103,7 +104,7 @@
 
   .mode-row { display: flex; gap: 7px; justify-content: center; flex-wrap: wrap;
     padding-top: 13px; border-top: 1px solid #23233c; }
-  .quality-row { display: flex; gap: 7px; justify-content: center; flex-wrap: wrap; margin-top: 9px; }
+  .quality-row { display: flex; gap: 7px; justify-content: flex-start; flex-wrap: wrap; flex: 1; min-width: 0; }
   .qbtn {
     background: #202038; border: 1px solid #2a2a48; border-radius: 15px; color: #a8a8c8;
     font-size: 12px; padding: 5px 13px; cursor: pointer; transition: all .2s; letter-spacing: .3px;
@@ -230,24 +231,6 @@
   .error-box .retry { display: inline-block; margin-top: 10px; background: #202038; border: 1px solid #2a2a48;
     color: #ffd700; font-size: 12px; padding: 6px 16px; border-radius: 16px; cursor: pointer; }
 
-  /* ===== 页面底部：全站搜歌入口 ===== */
-  .page-foot { width: 100%; max-width: 940px; display: flex; justify-content: center; margin-top: 18px; padding-bottom: 4px; }
-  .foot-btn {
-    display: inline-flex; align-items: center; gap: 9px;
-    background: linear-gradient(135deg, rgba(255,215,0,.15), rgba(255,215,0,.05));
-    border: 1px solid rgba(255,215,0,.55); border-radius: 22px;
-    color: #ffd700; font-size: 13.5px; font-weight: 600; letter-spacing: .6px;
-    padding: 11px 26px; cursor: pointer; text-decoration: none;
-    box-shadow: 0 6px 22px rgba(255,215,0,.13);
-    transition: background .22s, box-shadow .22s, transform .12s, border-color .22s;
-  }
-  .foot-btn:hover {
-    background: linear-gradient(135deg, rgba(255,215,0,.27), rgba(255,215,0,.1));
-    border-color: #ffd700; box-shadow: 0 9px 30px rgba(255,215,0,.3); transform: translateY(-1px);
-  }
-  .foot-btn:active { transform: translateY(0) scale(.985); }
-  .foot-btn svg { display: block; }
-
   /* ===== 播放列表抽屉 ===== */
   .drawer-mask {
     position: fixed; inset: 0; background: rgba(6,6,14,.6);
@@ -339,15 +322,14 @@
       <input type="range" id="vol" min="0" max="100" value="80">
     </div>
 
-    <div class="queue-row">
+    <div class="mode-row" id="mRow"></div>
+    <div class="quality-line">
+      <div class="quality-row" id="qRow"></div>
       <button class="qlink" id="btnQueue">
         <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4 6h11v2H4zm0 5h11v2H4zm0 5h7v2H4zm11 0v-4.2a3 3 0 10-1 2.2V16h1z"/></svg>
         播放列表 <span class="badge" id="qBadge">0</span>
       </button>
     </div>
-
-    <div class="mode-row" id="mRow"></div>
-    <div class="quality-row" id="qRow"></div>
     <div class="footer" id="footer"></div>
   </div>
 
@@ -372,12 +354,6 @@
   </div>
 </div>
 
-<footer class="page-foot">
-  <a class="foot-btn" id="footBtn" href="#/search">
-    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10.5 3a7.5 7.5 0 015.9 12.1l4.3 4.3-1.4 1.4-4.3-4.3A7.5 7.5 0 1110.5 3zm0 2a5.5 5.5 0 100 11 5.5 5.5 0 000-11z"/></svg>
-    <span id="footText">可搜索全部歌曲</span>
-  </a>
-</footer>
 
 <div class="drawer-mask" id="drawerMask"></div>
 <aside class="drawer" id="drawer">
@@ -406,15 +382,20 @@
     cover:        'https://img1.kuwo.cn/star/albumcover/500/{pic}'
   };
 
-  /* 酷我音源：a 主、b 兜底 */
+  /* 酷我音源：a/b 为 haitangw 主备（首选），c 为酷我官方解析（兜底） */
   var SRC = {
     a: { url: 'https://music.haitangw.cc/music/kw.php' },
-    b: { url: 'https://music.haitangw.cc/music/kw1.php' }
+    b: { url: 'https://music.haitangw.cc/music/kw1.php' },
+    c: { url: 'https://mobi.kuwo.cn/mobi.s?f=web&source=kwplayer_ar_5.1.0.0_B_jiakong_vh.apk&type=convert_url_with_sign&br=' }
   };
 
-  /* 全网音源：聚合接口 */
+  /* 全网音源：聚合接口（仅在酷我搜不到 / 解析失败时兜底） */
   var MUSIC_API = 'https://music-api.gdstudio.xyz/api.php';
   var MUSIC_SOURCE = 'netease';
+
+  /* 酷我全网搜索：官方 r.s 支持 JSONP，浏览器可直接跨域调用 */
+  var KW_SEARCH = 'https://search.kuwo.cn/r.s';
+  var KW_PAGE = 30;
 
   /* 三档音质统一口径；全网源按 999/320/128 映射 */
   var LEVELS = [
@@ -832,11 +813,102 @@
   }
 
   /* ================= 全站搜歌 ================= */
+
+  /* 酷我搜索（首选）：官方 r.s 为 JSONP，浏览器端可跨域取到全站曲库 */
+  var kwSeq = 0;
+  function kwJsonp(url, timeout) {
+    return new Promise(function (resolve, reject) {
+      var name = '__kwcb' + (++kwSeq);
+      var el = document.createElement('script');
+      var done = false;
+      function finish(fn, arg) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        try { delete window[name]; } catch (e) { window[name] = undefined; }
+        if (el.parentNode) el.parentNode.removeChild(el);
+        fn(arg);
+      }
+      var timer = setTimeout(function () { finish(reject, new Error('搜索超时')); }, timeout || 9000);
+      window[name] = function (data) { finish(resolve, data); };
+      window.jsonError = function () { finish(reject, new Error('搜索失败')); };
+      el.onerror = function () { finish(reject, new Error('网络错误')); };
+      el.src = url + '&callback=' + name;
+      document.head.appendChild(el);
+    });
+  }
+
+  function kwSong(m) {
+    if (!m) return null;
+    var rid = String(m.MUSICRID || '') || (m.DC_TARGETID ? 'MUSIC_' + m.DC_TARGETID : '');
+    rid = rid.replace(/^MUSIC_/, '');
+    if (!rid) return null;
+    var pay = m.payInfo || {};
+    return fixSong({
+      src: 'kw',
+      rid: rid,
+      key: 'kw:' + rid,
+      name: clean(m.SONGNAME || m.NAME || ''),
+      artist: clean(m.ARTIST || '未知歌手'),
+      album: clean(m.ALBUM || ''),
+      pic: clean(m.web_albumpic_short || m.web_artistpic_short || ''),
+      duration: Number(m.DURATION || 0),
+      formats: String(m.FORMATS || ''),
+      vip: String(((pay.feeType || {}).vip) || '0') !== '0'
+    });
+  }
+
+  function kwSearchPage(kwName, pn) {
+    var url = KW_SEARCH + '?client=kt&all=' + encodeURIComponent(kwName) +
+      '&pn=' + (pn * KW_PAGE) + '&rn=' + KW_PAGE +
+      '&uid=0&ver=kwplayer_ar_9.2.2.1&vipver=1&show_copyright_off=0&newver=1' +
+      '&ft=music&cluster=0&strategy=2012&encoding=utf8&rformat=json&vermerge=1&mobi=1';
+    return kwJsonp(url, 9000).then(function (d) {
+      var raw = (d && d.abslist) || [];
+      /* 时长过短的片段（十几秒的搞笑/试听素材）直接剔除，避免点了只能听一小段 */
+      var list = raw.map(kwSong).filter(function (s) {
+        return s && s.name && (!s.duration || s.duration >= 45);
+      });
+      return { list: list, raw: raw.length };
+    });
+  }
+
   function apiGet(qs) {
     return fetch(MUSIC_API + '?' + qs, { cache: 'no-store' }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     });
+  }
+
+  var PIC_MEM = {};
+  var PIC_TTL = 30 * 24 * 60 * 60 * 1000;
+  function picFromCache(pid) {
+    if (!pid) return '';
+    if (PIC_MEM[pid]) return PIC_MEM[pid];
+    try {
+      var o = JSON.parse(localStorage.getItem('jay_pic_v1_' + pid) || 'null');
+      if (o && o.u && Date.now() - o.t < PIC_TTL) { PIC_MEM[pid] = o.u; return o.u; }
+    } catch (e) {}
+    return '';
+  }
+  function picSet(pid, u) {
+    if (!pid || !u) return;
+    PIC_MEM[pid] = u;
+    try { localStorage.setItem('jay_pic_v1_' + pid, JSON.stringify({ t: Date.now(), u: u })); } catch (e) {}
+  }
+  function fetchPic(song, cb) {
+    if (!song || song.src !== 'net' || !song.picId) return;
+    var pid = song.picId;
+    var hit = picFromCache(pid);
+    if (hit) { song.pic = hit; if (cb) cb(hit); return; }
+    apiGet('types=pic&source=' + MUSIC_SOURCE + '&id=' + encodeURIComponent(pid) + '&size=500').then(function (j) {
+      var u = j && j.url;
+      if (!u) return;
+      u = String(u).replace(/^http:\/\//i, 'https://');
+      picSet(pid, u);
+      song.pic = u;
+      if (cb) cb(u);
+    }).catch(function () {});
   }
 
   function netSong(m) {
@@ -852,18 +924,29 @@
       artist: clean(artist || '未知歌手'),
       album: clean((m && m.album) || ''),
       pic: '',
+      picId: String((m && m.pic_id) || ''),
       duration: 0,
       formats: ''
     });
   }
 
-  function searchPage(kw, pn) {
-    var qs = 'types=search&source=' + MUSIC_SOURCE + '&name=' + encodeURIComponent(kw) +
+  function searchNetPage(kwName, pn) {
+    var qs = 'types=search&source=' + MUSIC_SOURCE + '&name=' + encodeURIComponent(kwName) +
       '&count=' + NET_PAGE + '&pages=' + (pn + 1);
     return apiGet(qs).then(function (d) {
       if (d && d.detail) throw new Error(d.detail);
-      var arr = (d instanceof Array ? d : []).map(netSong).filter(function (s) { return s.id && s.name; });
-      return { list: arr };
+      var raw = (d instanceof Array ? d : []);
+      var arr = raw.map(netSong).filter(function (s) { return s.id && s.name; });
+      return { list: arr, raw: raw.length };
+    });
+  }
+
+  /* 搜索总调度：默认走酷我，酷我无结果 / 出错才回落到网易云 */
+  function searchAny(kwName, pn, source, allowFallback) {
+    if (source === 'net') return searchNetPage(kwName, pn);
+    return kwSearchPage(kwName, pn).catch(function () { return { list: [], raw: 0 }; }).then(function (r) {
+      if (r.list.length || !allowFallback) return r;
+      return searchNetPage(kwName, pn).then(function (n) { n.source = 'net'; return n; });
     });
   }
 
@@ -925,13 +1008,14 @@
     var my = ++N.seq;
     var pn = append ? N.pn + 1 : 0;
     if (!append) {
-      N.kw = kw; N.list = []; N.done = false; N.pn = 0; N.err = '';
+      N.kw = kw; N.list = []; N.done = false; N.pn = 0; N.err = ''; N.source = 'kw';
       try { localStorage.setItem(LAST_KEY, kw); } catch (e) {}
       if (!skipCache) {
         var c = netCacheGet('search_' + kw);
         if (c && c.list && c.list.length) {
           c.list.forEach(fixSong);
           N.list = c.list; N.done = true; N.loading = false;
+          N.source = c.source || 'kw';
           renderNet();
           return;
         }
@@ -945,11 +1029,14 @@
   function dedupeKey(s) { return s.name + '|' + s.artist; }
 
   function fetchNetPage(kw, pn, my, append, tries) {
-    searchPage(kw, pn).then(function (res) {
+    var source = pn === 0 ? 'kw' : (S.net.source || 'kw');
+    searchAny(kw, pn, source, pn === 0).then(function (res) {
       var N = S.net;
       if (my !== N.seq) return;
+      if (res.source) N.source = res.source;
       var arr = res.list;
-      var rawLen = arr.length;
+      var rawLen = (res.raw == null) ? arr.length : res.raw;
+      var pageSize = (N.source === 'net') ? NET_PAGE : KW_PAGE;
       if (append) {
         var seen = {};
         N.list.forEach(function (s) { seen[dedupeKey(s)] = 1; });
@@ -960,8 +1047,8 @@
       }
       N.pn = pn;
       N.loading = false;
-      N.done = rawLen < NET_PAGE;
-      if (!append) netCacheSet('search_' + kw, { list: N.list });
+      N.done = rawLen < pageSize;
+      if (!append) netCacheSet('search_' + kw, { list: N.list, source: N.source });
       if (S.tab === 'search') renderNet();
     }).catch(function (e) {
       var N = S.net;
@@ -975,6 +1062,10 @@
 
   /* ================= 音源解析 ================= */
   function buildSrcUrl(key, song, lv) {
+    if (key === 'c') {
+      var br = lv === 'lossless' ? '2000kflac' : (lv === 'exhigh' ? '320kmp3' : '128kmp3');
+      return SRC.c.url + br + '&rid=' + ridOf(song);
+    }
     return SRC[key].url + '?id=' + ridOf(song) + '&level=' + lv;
   }
   function parseSrc(txt) {
@@ -984,6 +1075,8 @@
     if (j.url) return j.url;
     return '';
   }
+  /* 酷我加密格式（mflac/mgg）浏览器无法解码，直接视为不可用 */
+  function encSrc(u) { return /\.(mflac|mgg)(\?|$)/i.test(u || ''); }
 
   function resolveUrl(song, lv, force) {
     song = fixSong(song);
@@ -992,7 +1085,27 @@
     var hit = Core.urlCache[ck];
     var ttl = song.src === 'net' ? 20 * 60 * 1000 : 5 * 60 * 1000;
     if (hit && Date.now() - hit.t < ttl) return Promise.resolve(hit.url);
-    return song.src === 'net' ? resolveNet(song, lv, ck) : resolveKw(song, lv, ck);
+    if (song.src === 'net') return resolveNet(song, lv, ck);
+    return resolveKw(song, lv, ck).catch(function (e) {
+      /* 酷我解析不到，再按同名回落网易云，避免点了不播 */
+      return netMatchUrl(song, lv).catch(function () { throw e; });
+    });
+  }
+
+  /* 酷我曲目解析失败时，用同名歌曲去网易云兜一次 */
+  var netMatchCache = {};
+  function netMatchUrl(song, lv) {
+    var mk = 'm:' + (song.name || '') + '|' + (song.artist || '');
+    if (netMatchCache[mk]) return Promise.resolve(netMatchCache[mk]);
+    var nm = ((song.name || '') + ' ' + (song.artist || '')).trim();
+    return apiGet('types=search&source=' + MUSIC_SOURCE + '&name=' + encodeURIComponent(nm) + '&count=5&pages=1')
+      .then(function (d) {
+        var arr = (d instanceof Array ? d : []).map(netSong).filter(function (s) { return s.id; });
+        if (!arr.length) throw new Error('无匹配');
+        var brLv = (lv === 'standard') ? 'standard' : 'exhigh';
+        return resolveNet(arr[0], brLv, 'net:' + arr[0].id + '|' + brLv);
+      })
+      .then(function (u) { netMatchCache[mk] = u; return u; });
   }
 
   function resolveNet(song, lv, ck) {
@@ -1019,7 +1132,7 @@
 
   function resolveKw(song, lv, ck) {
     return new Promise(function (resolve, reject) {
-      var order = ['a', 'b'];
+      var order = ['a', 'b', 'c'];
       var i = 0;
       function tryNext() {
         if (i >= order.length) { reject(new Error('全部音源均不可用')); return; }
@@ -1029,6 +1142,8 @@
           .then(function (txt) {
             var url = parseSrc(txt);
             if (!url) throw new Error('empty');
+            if (encSrc(url)) throw new Error('encrypted');
+            if (!/^https?:/i.test(url)) throw new Error('bad');
             Core.urlCache[ck] = { url: url, t: Date.now() };
             resolve(url);
           })
@@ -1072,6 +1187,7 @@
           try { audio.currentTime = rt; } catch (e) {}
         });
       }
+      auditFullSong(song, token);
       if (autoplay !== false) {
         audio.play().then(function () { setPlaying(true); }).catch(function () {
           setFormatText('播放失败', true);
@@ -1080,9 +1196,45 @@
       preloadNext();
     }).catch(function () {
       if (token !== Core.token) return;
+      stopAudio();
       setFormatText('解析失败', true);
+      autoNext(token);
     });
     snapshot();
+  }
+
+  /* 停掉当前音频，避免解析失败时旧曲继续播放造成「点了没反应」 */
+  function stopAudio() {
+    try { audio.pause(); } catch (e) {}
+    audio.removeAttribute('src');
+    try { audio.load(); } catch (e) {}
+    setPlaying(false);
+  }
+
+  function autoNext(token) {
+    var ni = nextIndex();
+    if (ni < 0 || ni === Core.idx) return;
+    setTimeout(function () {
+      if (token !== Core.token) return;
+      corePlayAt(ni, true);
+    }, 700);
+  }
+
+  /* 完整性校验：拿到真实时长与曲目时长比对，明显偏短判定为试听片段并跳过 */
+  function auditFullSong(song, token) {
+    var expect = Number((song && song.duration) || 0);
+    function onMeta() {
+      audio.removeEventListener('loadedmetadata', onMeta);
+      if (token !== Core.token) return;
+      var real = audio.duration;
+      if (!isFinite(real) || real <= 0) return;
+      var trial = expect > 0 ? (real + 6 < expect * 0.6 && real < 120) : (real <= 45);
+      if (!trial) return;
+      stopAudio();
+      setFormatText('试听片段', true);
+      autoNext(token);
+    }
+    audio.addEventListener('loadedmetadata', onMeta);
   }
 
   function preloadNext() {
@@ -1246,22 +1398,87 @@
     }
   }
 
+  /* 封面兜底链：酷我搜索自带封面 → 酷我解析接口返回的 pic → 网易云同名曲封面 */
+  var COVER_FB = {};
+
+  function kwCoverFor(song, cb) {
+    if (!song || song.src === 'net' || !ridOf(song)) { cb(''); return; }
+    fetch(SRC.b.url + '?id=' + ridOf(song) + '&level=standard', { cache: 'no-store' })
+      .then(function (r) { return r.text(); })
+      .then(function (txt) {
+        var j = parseLoose(txt) || {};
+        var d = j.data || j;
+        var u = d.pic || '';
+        if (!u) { cb(''); return; }
+        u = String(u).replace(/^http:\/\//i, 'https://').replace(/\/(120|150|300)\//, '/500/');
+        cb(u);
+      }).catch(function () { cb(''); });
+  }
+
+  function netCoverFor(song, cb) {
+    var k = keyOf(song);
+    if (!k) { cb(''); return; }
+    if (COVER_FB[k]) { cb(COVER_FB[k]); return; }
+    var q = ((song.name || '') + ' ' + (song.artist || '')).trim();
+    apiGet('types=search&source=' + MUSIC_SOURCE + '&name=' + encodeURIComponent(q) + '&count=3&pages=1')
+      .then(function (d) {
+        var arr = (d instanceof Array ? d : []);
+        for (var i = 0; i < arr.length; i++) {
+          var pid = arr[i] && arr[i].pic_id;
+          if (!pid) continue;
+          return apiGet('types=pic&source=' + MUSIC_SOURCE + '&id=' + pid + '&size=500').then(function (j) {
+            var u = j && j.url;
+            if (!u) { cb(''); return; }
+            u = String(u).replace(/^http:\/\//i, 'https://');
+            COVER_FB[k] = u;
+            cb(u);
+          });
+        }
+      }).catch(function () { cb(''); });
+  }
+
+  function paintCover(song, myKey, u) {
+    var img = $('coverImg');
+    if (!u || img.getAttribute('data-rid') !== myKey) return false;
+    img.style.display = 'block';
+    img.src = u;
+    img.onerror = function () {
+      var im = $('coverImg');
+      if (im.getAttribute('data-rid') !== myKey) return;
+      im.style.display = 'none';
+      $('coverIcon').style.display = 'block';
+      netCoverFor(song, function (u2) {
+        if (!u2 || im.getAttribute('data-rid') !== myKey) return;
+        im.style.display = 'block';
+        im.src = u2;
+        im.onerror = function () { im.style.display = 'none'; $('coverIcon').style.display = 'block'; };
+        $('coverIcon').style.display = 'none';
+      });
+    };
+    $('coverIcon').style.display = 'none';
+    return true;
+  }
+
   function showSong(song) {
     if (!song) return;
     $('coverTitle').textContent = song.name;
     $('coverArtist').textContent = song.artist || '周杰伦';
-    var p = picUrl(song.pic);
+    var myKey = keyOf(song);
     var img = $('coverImg');
-    img.setAttribute('data-rid', keyOf(song));
-    if (p) {
-      img.style.display = 'block';
-      img.src = p;
-      img.onerror = function () { img.style.display = 'none'; $('coverIcon').style.display = 'block'; };
-      $('coverIcon').style.display = 'none';
-    } else {
-      img.style.display = 'none';
-      $('coverIcon').style.display = 'block';
+    img.setAttribute('data-rid', myKey);
+    var p = picUrl(song.pic);
+    if (!p && song.src === 'net') p = picFromCache(song.picId);
+    if (p && paintCover(song, myKey, p)) return;
+    img.style.display = 'none';
+    $('coverIcon').style.display = 'block';
+    if (song.src === 'net') {
+      fetchPic(song, function (u) { if (u) paintCover(song, myKey, u); });
+      return;
     }
+    kwCoverFor(song, function (ku) {
+      if (ku && paintCover(song, myKey, ku)) return;
+      netCoverFor(song, function (u) { if (u) paintCover(song, myKey, u); });
+    });
   }
 
   function showDefaultCover() {
@@ -1319,8 +1536,9 @@
   function setFormatText(txt, plain) {
     var f = $('footer');
     if (!plain) { f.textContent = ''; return; }
-    if (txt === '解析失败') f.textContent = '当前曲目暂时无法解析，可稍后重试或切换音质';
+    if (txt === '解析失败') f.textContent = '当前曲目暂无完整音源，正在尝试下一首';
     else if (txt === '播放失败') f.textContent = '当前曲目播放失败，可稍后重试或切换音质';
+    else if (txt === '试听片段') f.textContent = '该曲目仅有试听片段，已自动跳过';
     else f.textContent = '';
   }
 
@@ -1366,17 +1584,6 @@
   }
 
   /* ================= 视图切换（hash 路由，不卸载文档） ================= */
-  function updateFoot(tab) {
-    var b = $('footBtn');
-    if (tab === 'search') {
-      b.setAttribute('href', '#/');
-      b.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M14.4 5.4l-7 6.6 7 6.6V14H4v-4h10.4z"/></svg><span id="footText">返回周杰伦曲库</span>';
-    } else {
-      b.setAttribute('href', '#/search');
-      b.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10.5 3a7.5 7.5 0 015.9 12.1l4.3 4.3-1.4 1.4-4.3-4.3A7.5 7.5 0 1110.5 3zm0 2a5.5 5.5 0 100 11 5.5 5.5 0 000-11z"/></svg><span id="footText">可搜索全部歌曲</span>';
-    }
-  }
-
   function showTab(tab) {
     S.tab = tab;
     var tabs = document.querySelectorAll('.tab');
@@ -1387,7 +1594,6 @@
     $('search').style.display = isNet ? 'none' : '';
     $('netWrap').style.display = isNet ? 'flex' : 'none';
     $('hotRow').style.display = isNet && !S.net.kw ? 'flex' : 'none';
-    updateFoot(tab);
 
     if (isNet) {
       if (!S.net.kw) {
