@@ -326,7 +326,7 @@
     <div class="quality-line">
       <div class="quality-row" id="qRow"></div>
       <button class="qlink" id="btnQueue">
-        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4 6h11v2H4zm0 5h11v2H4zm0 5h7v2H4zm11 0v-4.2a3 3 0 10-1 2.2V16h1z"/></svg>
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="gold" d="M4 6h11v2H4zm0 5h11v2H4zm0 5h11v2H4z" /></svg>
         播放列表 <span class="badge" id="qBadge">0</span>
       </button>
     </div>
@@ -339,8 +339,8 @@
       <span class="lib-count" id="libCount">--</span>
     </div>
     <div class="tabs">
-      <div class="tab act" data-tab="album">专辑</div>
-      <div class="tab" data-tab="song">全部歌曲</div>
+      <div class="tab act" data-tab="album">周杰伦专辑</div>
+      <div class="tab" data-tab="song">周杰伦歌曲</div>
       <div class="tab" data-tab="search">全站搜歌</div>
     </div>
     <input class="search-box" id="search" placeholder="搜索歌曲或专辑…" autocomplete="off">
@@ -406,7 +406,7 @@
 
   var NET_PAGE = 30;
   var NET_TTL = 30 * 60 * 1000;
-  var HOT = ['林俊杰', '邓紫棋', '陈奕迅', '薛之谦', '李荣浩', '毛不易', '周深', '华晨宇', 'Taylor Swift', '告五人'];
+  var HOT = ['Beyond', '张学友', '林俊杰', '陈奕迅', '邓紫棋', '许嵩', '薛之谦', '李荣浩', '毛不易', '周深', '孙燕姿', 'Taylor Swift', 'Michael Jackson', 'BigBang'];
   var LAST_KEY = 'jay_v3_lastsearch';
   var SNAP_KEY = 'jay_core_v1';
 
@@ -960,10 +960,9 @@
     $('hotRow').style.display = N.kw ? 'none' : 'flex';
 
     if (!N.kw) {
-      $('libCount').textContent = '--';
+      $('libCount').textContent = '已下架歌曲无法搜索';
       S.queue = [];
-      $('view').innerHTML = '<div class="hero">输入关键词，搜索 <b>全网曲库</b>，任何歌手的歌都能搜到、都能播。' +
-        '<br>搜到的歌可点右侧「+」临时加入播放列表。</div>';
+      $('view').innerHTML = '<div class="hero">输入关键词，搜索 <b>全网曲库</b>，搜到的歌可点右侧「+」临时加入播放列表。';
       return;
     }
     $('libCount').textContent = '已载入 ' + N.list.length + ' 首' + (N.loading ? ' · 搜索中' : '');
@@ -1110,7 +1109,35 @@
       .then(function (u) { netMatchCache[mk] = u; return u; });
   }
 
+  /* ===== 音源增强（本地测试版新增）：海棠网易直解 wy.php =====
+     wy.php 一次返回直链 + 封面 + 时长 + 音质，CORS 全开，作为网易首选；
+     失败自动回落原 gdstudio 聚合接口。 */
+  var NET_WY = 'https://music.haitangw.cc/music/wy.php';
+  function durToSec(v) {
+    if (typeof v === 'number') return v;
+    var m = String(v || '').match(/(\d+)\s*分\s*(\d+)?/);
+    if (m) return (parseInt(m[1], 10) || 0) * 60 + (parseInt(m[2] || '0', 10) || 0);
+    var n = parseInt(v, 10);
+    return isNaN(n) ? 0 : n;
+  }
+  function wyResolve(song, lv) {
+    var id = song.id || song.url_id;
+    if (!id) return Promise.reject(new Error('no id'));
+    var lvl = lv === 'lossless' ? 'lossless' : (lv === 'exhigh' ? 'exhigh' : 'standard');
+    return fetch(NET_WY + '?id=' + encodeURIComponent(id) + '&level=' + lvl + '&type=json', { cache: 'no-store' })
+      .then(function (r) { return r.text(); })
+      .then(function (t) {
+        var j = parseLoose(t), d = (j && (j.data || j)) || {};
+        if (!d.url || encSrc(d.url)) throw new Error('wy.php 无可用直链');
+        if (!song.pic && d.pic) song.pic = d.pic;
+        if (!Number(song.duration) && d.duration) song.duration = durToSec(d.duration);
+        return d.url;
+      });
+  }
   function resolveNet(song, lv, ck) {
+    return wyResolve(song, lv).catch(function () { return gdResolveNet(song, lv, ck); });
+  }
+  function gdResolveNet(song, lv, ck) {
     var id = song.id || song.url_id;
     if (!id) return Promise.reject(new Error('无歌曲ID'));
     var want = '320';
