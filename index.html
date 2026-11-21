@@ -9,8 +9,8 @@
   body {
     background: linear-gradient(160deg, #0f0f1a 0%, #16162a 45%, #1d1d33 100%);
     min-height: 100vh;
-    display: flex; align-items: center; justify-content: center;
-    align-items: safe center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    align-items: safe center; justify-content: safe center;
     font-family: 'Segoe UI', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
     color: #e8e8f0; padding: 24px 12px;
   }
@@ -170,6 +170,24 @@
     border-radius: 12px; padding: 16px 14px; font-size: 12.5px; color: #ff9d9d; line-height: 1.7; }
   .error-box .retry { display: inline-block; margin-top: 10px; background: #202038; border: 1px solid #2a2a48;
     color: #ffd700; font-size: 12px; padding: 6px 16px; border-radius: 16px; cursor: pointer; }
+
+  /* ===== 页面底部：全部歌曲搜索入口 ===== */
+  .page-foot { width: 100%; max-width: 940px; display: flex; justify-content: center; margin-top: 18px; padding-bottom: 4px; }
+  .foot-btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    background: linear-gradient(135deg, rgba(255,215,0,.15), rgba(255,215,0,.05));
+    border: 1px solid rgba(255,215,0,.55); border-radius: 22px;
+    color: #ffd700; font-size: 13.5px; font-weight: 600; letter-spacing: .6px;
+    padding: 11px 26px; cursor: pointer; text-decoration: none;
+    box-shadow: 0 6px 22px rgba(255,215,0,.13);
+    transition: background .22s, box-shadow .22s, transform .12s, border-color .22s;
+  }
+  .foot-btn:hover {
+    background: linear-gradient(135deg, rgba(255,215,0,.27), rgba(255,215,0,.1));
+    border-color: #ffd700; box-shadow: 0 9px 30px rgba(255,215,0,.3); transform: translateY(-1px);
+  }
+  .foot-btn:active { transform: translateY(0) scale(.985); }
+  .foot-btn svg { display: block; }
 </style>
 </head>
 <body>
@@ -225,6 +243,13 @@
     <div class="scroll-area" id="view"><div class="loading">加载中…</div></div>
   </div>
 </div>
+
+<footer class="page-foot">
+  <a class="foot-btn" href="songs.html">
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10.5 3a7.5 7.5 0 015.9 12.1l4.3 4.3-1.4 1.4-4.3-4.3A7.5 7.5 0 1110.5 3zm0 2a5.5 5.5 0 100 11 5.5 5.5 0 000-11z"/></svg>
+    可搜索全部歌曲
+  </a>
+</footer>
 
 <audio id="audio" preload="none"></audio>
 
