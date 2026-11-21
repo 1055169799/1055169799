@@ -962,7 +962,7 @@
     if (!N.kw) {
       $('libCount').textContent = '已下架歌曲无法搜索';
       S.queue = [];
-      $('view').innerHTML = '<div class="hero">输入关键词，搜索 <b>全网曲库</b>，搜到的歌可点右侧「+」临时加入播放列表。';
+      $('view').innerHTML = '<div class="hero">输入关键词，搜索 <b>全网曲库</b>，搜到的歌可点右侧「+」临时加入播放列表。</div>';
       return;
     }
     $('libCount').textContent = '已载入 ' + N.list.length + ' 首' + (N.loading ? ' · 搜索中' : '');
